@@ -36,6 +36,15 @@
     <p><strong>Média diária disponível:</strong> <span id="mediaDiaria"></span> €</p>
   </div>
 
+  <!-- Configurações do Perfil -->
+  <div class="card">
+    <h4>Editar Perfil</h4>
+    <label>Saldo inicial (€): </label><input type="number" id="saldoInicial"><br>
+    <label>Data início:</label> <input type="date" id="dataInicio"><br>
+    <label>Data fim:</label> <input type="date" id="dataFim"><br>
+    <button id="btnSalvarPerfil">Salvar Perfil</button>
+  </div>
+
   <!-- Adicionar Despesa -->
   <div class="card">
     <h4>Adicionar Despesa</h4>
@@ -89,9 +98,9 @@
 
   onAuthStateChanged(auth, async user => {
     if(user){
+      perfilAtivo = user.email;
       document.getElementById("loginScreen").style.display="none";
       document.getElementById("app").style.display="block";
-      perfilAtivo = user.email;
       await criarPerfilSeNaoExistir();
       mostrarPerfil();
     } else {
@@ -110,7 +119,6 @@
     const perfilRef = doc(db, "perfis", perfilAtivo);
     const perfilSnap = await getDoc(perfilRef);
     if(!perfilSnap.exists()){
-      // Cria perfil inicial com saldo 0 e datas de hoje
       const hoje = new Date().toISOString().split('T')[0];
       await setDoc(perfilRef, { saldo:0, dataInicio:hoje, dataFim:hoje, despesas:[] });
     }
@@ -125,6 +133,10 @@
     const perfil = perfilSnap.data();
 
     document.getElementById("tituloPerfil").textContent = perfilAtivo;
+    document.getElementById("saldoInicial").value = perfil.saldo;
+    document.getElementById("dataInicio").value = perfil.dataInicio;
+    document.getElementById("dataFim").value = perfil.dataFim;
+
     const totalGasto = perfil.despesas.reduce((acc,d)=>acc+d.valor,0);
     const saldoAtual = perfil.saldo - totalGasto;
     const hoje = new Date();
@@ -152,6 +164,24 @@
       listaDespesas.appendChild(li);
     });
   }
+
+  // --- SALVAR PERFIL ---
+  document.getElementById("btnSalvarPerfil").addEventListener("click", async () => {
+    if(!perfilAtivo) return;
+    const saldo = parseFloat(document.getElementById("saldoInicial").value);
+    const dataInicio = document.getElementById("dataInicio").value;
+    const dataFim = document.getElementById("dataFim").value;
+    if(isNaN(saldo) || !dataInicio || !dataFim) return alert("Preencha todos os campos corretamente.");
+    if(new Date(dataFim) < new Date(dataInicio)) return alert("Data fim deve ser após data início.");
+
+    const perfilRef = doc(db,"perfis",perfilAtivo);
+    const perfilSnap = await getDoc(perfilRef);
+    if(!perfilSnap.exists()) return;
+
+    const perfil = perfilSnap.data();
+    await updateDoc(perfilRef, { saldo, dataInicio, dataFim });
+    mostrarPerfil();
+  });
 
   // --- ADICIONAR DESPESA ---
   document.getElementById("btnAdicionarDespesa").addEventListener("click", async ()=>{
