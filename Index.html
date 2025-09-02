@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestor de Perfis Financeiros</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-6">
+  <div class="w-full max-w-4xl bg-white shadow-xl rounded-2xl p-6">
+    <h1 class="text-2xl font-bold mb-4 text-center">💰 Gestor de Perfis Financeiros</h1>
+
+    <!-- Criar Perfil -->
+    <div class="mb-6">
+      <h2 class="text-lg font-semibold mb-2">Criar Novo Perfil</h2>
+      <div class="grid grid-cols-3 gap-2">
+        <input id="perfilNome" type="text" placeholder="Nome do Perfil" class="border p-2 rounded">
+        <input id="perfilSaldo" type="number" placeholder="Saldo Inicial (€)" class="border p-2 rounded">
+        <input id="perfilDias" type="number" placeholder="Nº de Dias" class="border p-2 rounded">
+      </div>
+      <button onclick="criarPerfil()" class="mt-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Adicionar Perfil</button>
+    </div>
+
+    <!-- Selecionar Perfil -->
+    <div class="mb-6">
+      <h2 class="text-lg font-semibold mb-2">Selecionar Perfil</h2>
+      <select id="perfilSelect" onchange="atualizarPerfil()" class="border p-2 rounded w-full"></select>
+    </div>
+
+    <!-- Info Perfil -->
+    <div id="perfilInfo" class="hidden mb-6 p-4 bg-gray-50 rounded-xl border">
+      <h2 class="text-lg font-semibold mb-2">Resumo do Perfil</h2>
+      <p><strong>Saldo Inicial:</strong> <span id="saldoInicial"></span> €</p>
+      <p><strong>Total Gasto:</strong> <span id="totalGasto"></span> €</p>
+      <p><strong>Saldo Restante:</strong> <span id="saldoRestante"></span> €</p>
+      <p><strong>Média por Dia Restante:</strong> <span id="mediaDiaria"></span> €</p>
+    </div>
+
+    <!-- Registar Despesas -->
+    <div id="despesasSecao" class="hidden">
+      <h2 class="text-lg font-semibold mb-2">Adicionar Despesa</h2>
+      <div class="grid grid-cols-3 gap-2">
+        <input id="despesaData" type="date" class="border p-2 rounded">
+        <input id="despesaValor" type="number" placeholder="Valor (€)" class="border p-2 rounded">
+        <input id="despesaObs" type="text" placeholder="Observação (opcional)" class="border p-2 rounded">
+      </div>
+      <button onclick="adicionarDespesa()" class="mt-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Adicionar</button>
+
+      <!-- Lista de despesas -->
+      <h3 class="mt-4 font-semibold">Histórico de Despesas</h3>
+      <ul id="listaDespesas" class="mt-2 space-y-1 text-sm"></ul>
+    </div>
+  </div>
+
+  <script>
+    let perfis = JSON.parse(localStorage.getItem("perfis")) || {};
+    let perfilAtivo = null;
+
+    function salvarPerfis() {
+      localStorage.setItem("perfis", JSON.stringify(perfis));
+    }
+
+    function atualizarSelect() {
+      const select = document.getElementById("perfilSelect");
+      select.innerHTML = "";
+      Object.keys(perfis).forEach(nome => {
+        const opt = document.createElement("option");
+        opt.value = nome;
+        opt.textContent = nome;
+        select.appendChild(opt);
+      });
+      if (perfilAtivo) select.value = perfilAtivo;
+    }
+
+    function criarPerfil() {
+      const nome = document.getElementById("perfilNome").value.trim();
+      const saldo = parseFloat(document.getElementById("perfilSaldo").value);
+      const dias = parseInt(document.getElementById("perfilDias").value);
+
+      if (!nome || isNaN(saldo) || isNaN(dias)) {
+        alert("Preencha todos os campos corretamente.");
+        return;
+      }
+
+      perfis[nome] = { saldoInicial: saldo, dias, despesas: [] };
+      salvarPerfis();
+      atualizarSelect();
+      perfilAtivo = nome;
+      atualizarPerfil();
+    }
+
+    function atualizarPerfil() {
+      const select = document.getElementById("perfilSelect");
+      perfilAtivo = select.value;
+      if (!perfilAtivo) return;
+
+      const perfil = perfis[perfilAtivo];
+
+      const totalGasto = perfil.despesas.reduce((sum, d) => sum + d.valor, 0);
+      const saldoRestante = perfil.saldoInicial - totalGasto;
+
+      // Calcula dias restantes baseado no período original e número de dias já usados
+      const diasRestantes = Math.max(1, perfil.dias - perfil.despesas.length);
+      const mediaDiaria = (saldoRestante / diasRestantes).toFixed(2);
+
+      document.getElementById("saldoInicial").textContent = perfil.saldoInicial.toFixed(2);
+      document.getElementById("totalGasto").textContent = totalGasto.toFixed(2);
+      document.getElementById("saldoRestante").textContent = saldoRestante.toFixed(2);
+      document.getElementById("mediaDiaria").textContent = mediaDiaria;
+
+      document.getElementById("perfilInfo").classList.remove("hidden");
+      document.getElementById("despesasSecao").classList.remove("hidden");
+
+      const lista = document.getElementById("listaDespesas");
+      lista.innerHTML = "";
+      perfil.despesas.forEach(d => {
+        const li = document.createElement("li");
+        li.textContent = `${d.data} - ${d.valor.toFixed(2)} €` + (d.observacao ? ` (${d.observacao})` : "");
+        lista.appendChild(li);
+      });
+    }
+
+    function adicionarDespesa() {
+      const data = document.getElementById("despesaData").value;
+      const valor = parseFloat(document.getElementById("despesaValor").value);
+      const obs = document.getElementById("despesaObs").value.trim();
+
+      if (!data || isNaN(valor)) {
+        alert("Preencha os campos da despesa corretamente.");
+        return;
+      }
+
+      perfis[perfilAtivo].despesas.push({ data, valor, observacao: obs });
+      salvarPerfis();
+      atualizarPerfil();
+
+      // Limpar inputs
+      document.getElementById("despesaData").value = "";
+      document.getElementById("despesaValor").value = "";
+      document.getElementById("despesaObs").value = "";
+    }
+
+    atualizarSelect();
+  </script>
+</body>
+</html>
