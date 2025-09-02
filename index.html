@@ -92,13 +92,15 @@
       document.getElementById("loginScreen").style.display="block";
     }
 
-    window.onload = () => {
-      if(sessionStorage.getItem("loggedIn")){
-        document.getElementById("loginScreen").style.display="none";
-        document.getElementById("app").style.display="block";
-        carregarPerfis();
-      }
-    };
+window.onload = () => {
+  if(sessionStorage.getItem("loggedIn")){
+    document.getElementById("loginScreen").style.display="none";
+    document.getElementById("app").style.display="block";
+    carregarPerfis();
+  }
+
+  document.getElementById('btnLogin').addEventListener('click', login);
+};
 
     // --- App logic ---
     let perfilAtivo = null;
