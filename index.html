@@ -25,7 +25,7 @@
 
 <!-- App Screen -->
 <div id="app" style="display:none;">
-  <button onclick="logout()">Logout</button>
+  <button id="btnLogout">Logout</button>
   <h1>Gestor Financeiro</h1>
 
   <!-- Criar Perfil -->
@@ -41,8 +41,8 @@
 
   <!-- Selecionar/Eliminar Perfil -->
   <div class="card">
-    <select id="listaPerfis" onchange="selecionarPerfil()"></select>
-    <button onclick="eliminarPerfil()">Eliminar Perfil</button>
+    <select id="listaPerfis"></select>
+    <button id="btnEliminarPerfil">Eliminar Perfil</button>
   </div>
 
   <!-- Perfil Ativo -->
@@ -69,8 +69,9 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
   import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-analytics.js";
   import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
+  // Configuração Firebase
   const firebaseConfig = {
     apiKey: "AIzaSyAC9EguGeZd50W1jADEx73aJKGacFeGk9o",
     authDomain: "bddespesas.firebaseapp.com",
@@ -88,14 +89,14 @@
 
   let perfilAtivo = null;
 
-  // --- Login ---
+  // --- LOGIN ---
   document.getElementById("btnLogin").addEventListener("click", async () => {
     const email = document.getElementById("email").value;
     const password = document.getElementById("password").value;
     try {
       await signInWithEmailAndPassword(auth, email, password);
       document.getElementById("loginError").style.display="none";
-    } catch (e) {
+    } catch {
       document.getElementById("loginError").style.display="block";
     }
   });
@@ -111,21 +112,24 @@
     }
   });
 
-  async function logout() {
+  // --- LOGOUT ---
+  document.getElementById("btnLogout").addEventListener("click", async () => {
     await signOut(auth);
-  }
+  });
 
-  // --- Criar Perfil ---
+  // --- CRIAR PERFIL ---
+  document.getElementById("btnCriarPerfil").addEventListener("click", criarPerfil);
+
   async function criarPerfil() {
     const nome = document.getElementById("nomePerfil").value.trim();
     const saldo = parseFloat(document.getElementById("saldo").value);
     const dataInicio = document.getElementById("dataInicio").value;
     const dataFim = document.getElementById("dataFim").value;
 
-    if (!nome || isNaN(saldo) || !dataInicio || !dataFim) {
+    if(!nome || isNaN(saldo) || !dataInicio || !dataFim){
       return alert("Preencha todos os campos corretamente.");
     }
-    if (new Date(dataFim) < new Date(dataInicio)) {
+    if(new Date(dataFim) < new Date(dataInicio)){
       return alert("Data fim deve ser após data início.");
     }
 
@@ -136,38 +140,36 @@
       document.getElementById("dataInicio").value="";
       document.getElementById("dataFim").value="";
       carregarPerfis();
-    } catch (e) {
-      alert("Erro ao criar perfil: " + e.message);
+    } catch(e){
+      alert("Erro ao criar perfil: "+e.message);
     }
   }
 
-  document.getElementById("btnCriarPerfil").addEventListener("click", criarPerfil);
-
-  // --- Carregar e Selecionar Perfis ---
-  async function carregarPerfis() {
+  // --- CARREGAR PERFIS ---
+  async function carregarPerfis(){
     const lista = document.getElementById("listaPerfis");
-    lista.innerHTML = "";
+    lista.innerHTML="";
     const snapshot = await getDocs(collection(db,"perfis"));
-    snapshot.forEach(docItem=>{
+    snapshot.forEach(docItem => {
       const opt = document.createElement("option");
       opt.value = docItem.id;
       opt.textContent = docItem.id;
       lista.appendChild(opt);
     });
-    if(snapshot.docs.length===1){
+    if(snapshot.docs.length === 1){
       perfilAtivo = snapshot.docs[0].id;
       lista.value = perfilAtivo;
       mostrarPerfil();
     }
   }
 
-  async function selecionarPerfil() {
+  document.getElementById("listaPerfis").addEventListener("change", () => {
     perfilAtivo = document.getElementById("listaPerfis").value;
     mostrarPerfil();
-  }
+  });
 
-  // --- Mostrar Perfil ---
-  async function mostrarPerfil() {
+  // --- MOSTRAR PERFIL ---
+  async function mostrarPerfil(){
     if(!perfilAtivo) return;
     const docRef = doc(db,"perfis",perfilAtivo);
     const perfilSnap = await getDoc(docRef);
@@ -193,20 +195,20 @@
       const li = document.createElement("li");
       li.textContent = `${d.data} - ${d.valor.toFixed(2)}€ ${d.obs?`(${d.obs})`:''}`;
       const btnDel = document.createElement("span");
-      btnDel.textContent=" [X]";
-      btnDel.className="btnDespesa";
-      btnDel.onclick=async ()=>{
+      btnDel.textContent = " [X]";
+      btnDel.className = "btnDespesa";
+      btnDel.addEventListener("click", async ()=>{
         perfil.despesas.splice(index,1);
         await updateDoc(docRef,{despesas: perfil.despesas});
         mostrarPerfil();
-      };
+      });
       li.appendChild(btnDel);
       listaDespesas.appendChild(li);
     });
   }
 
-  // --- Adicionar Despesa ---
-  async function adicionarDespesa() {
+  // --- ADICIONAR DESPESA ---
+  document.getElementById("btnAdicionarDespesa").addEventListener("click", async ()=>{
     if(!perfilAtivo) return;
     const valor = parseFloat(document.getElementById("valorDespesa").value);
     const data = document.getElementById("dataDespesa").value;
@@ -226,19 +228,18 @@
     document.getElementById("valorDespesa").value="";
     document.getElementById("dataDespesa").value="";
     document.getElementById("obsDespesa").value="";
-  }
+  });
 
-  document.getElementById("btnAdicionarDespesa").addEventListener("click", adicionarDespesa);
-
-  // --- Eliminar Perfil ---
-  async function eliminarPerfil() {
+  // --- ELIMINAR PERFIL ---
+  document.getElementById("btnEliminarPerfil").addEventListener("click", async ()=>{
     if(!perfilAtivo) return;
     if(!confirm("Tem a certeza que quer eliminar este perfil?")) return;
     await deleteDoc(doc(db,"perfis",perfilAtivo));
     perfilAtivo = null;
     document.getElementById("dadosPerfil").style.display="none";
     carregarPerfis();
-  }
+  });
+
 </script>
 </body>
 </html>
