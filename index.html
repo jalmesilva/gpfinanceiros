@@ -30,8 +30,9 @@
 
   <!-- Criar novo Perfil -->
   <div class="card">
+    <h3>Criar Novo Perfil</h3>
     <input type="text" id="nomePerfil" placeholder="Nome do perfil"><br>
-    <input type="number" id="saldo" placeholder="Saldo inicial (€)"><br>
+    <input type="number" id="saldo" placeholder="Saldo inicial (€)" step="0.01"><br>
     <label>Data início:</label>
     <input type="date" id="dataInicio"><br>
     <label>Data fim:</label>
@@ -41,7 +42,10 @@
 
   <!-- Selecionar/Eliminar Perfil -->
   <div class="card">
-    <select id="listaPerfis" onchange="selecionarPerfil()"></select>
+    <h3>Gerir Perfis</h3>
+    <select id="listaPerfis" onchange="selecionarPerfil()">
+      <option value="">Selecione um perfil</option>
+    </select>
     <button id="btnEliminarPerfil">Eliminar Perfil</button>
   </div>
 
@@ -54,7 +58,7 @@
 
     <!-- Adicionar Despesa -->
     <h4>Adicionar Despesa</h4>
-    <input type="number" id="valorDespesa" placeholder="Valor (€)">
+    <input type="number" id="valorDespesa" placeholder="Valor (€)" step="0.01">
     <input type="date" id="dataDespesa">
     <input type="text" id="obsDespesa" placeholder="Observação (opcional)">
     <button id="btnAdicionarDespesa">Adicionar</button>
@@ -69,7 +73,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-analytics.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAC9EguGeZd50W1jADEx73aJKGacFeGk9o",
@@ -93,26 +97,34 @@ let usuarioLogado = null;
 document.getElementById("btnLogin").addEventListener("click", async () => {
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
+  
+  if(!email || !password) {
+    alert("Preencha email e password");
+    return;
+  }
+  
   try {
     await signInWithEmailAndPassword(auth, email, password);
     document.getElementById("loginError").style.display="none";
     console.log("Login bem-sucedido!");
-  } catch {
+  } catch (error) {
     document.getElementById("loginError").style.display="block";
-    console.log("Erro no login!");
+    console.log("Erro no login:", error.message);
   }
 });
 
 onAuthStateChanged(auth, async user => {
   if(user){
-    usuarioLogado = user.email;
+    usuarioLogado = user.uid; // Usando UID em vez de email
     document.getElementById("loginScreen").style.display="none";
     document.getElementById("app").style.display="block";
     await carregarPerfis();
   } else {
     usuarioLogado = null;
+    perfilAtivo = null;
     document.getElementById("app").style.display="none";
     document.getElementById("loginScreen").style.display="block";
+    document.getElementById("dadosPerfil").style.display="none";
   }
 });
 
@@ -125,124 +137,234 @@ document.getElementById("btnLogout").addEventListener("click", async () => {
 // --- CRIAR PERFIL ---
 document.getElementById("btnCriarPerfil").addEventListener("click", async () => {
   console.log("Clique detectado no criar perfil");
+  
+  if(!usuarioLogado) {
+    alert("Utilizador não autenticado");
+    return;
+  }
+  
   const nome = document.getElementById("nomePerfil").value.trim();
   const saldo = parseFloat(document.getElementById("saldo").value);
   const dataInicio = document.getElementById("dataInicio").value;
   const dataFim = document.getElementById("dataFim").value;
 
-  if(!nome || isNaN(saldo) || !dataInicio || !dataFim) return alert("Preencha todos os campos corretamente.");
-  if(new Date(dataFim) < new Date(dataInicio)) return alert("Data fim deve ser após data início.");
+  console.log("Dados do formulário:", { nome, saldo, dataInicio, dataFim });
 
-  const perfilRef = doc(db,"perfis",nome);
-  const perfilSnap = await getDoc(perfilRef);
-  if(perfilSnap.exists()) return alert("Já existe um perfil com esse nome.");
+  if(!nome || isNaN(saldo) || !dataInicio || !dataFim) {
+    alert("Preencha todos os campos corretamente.");
+    return;
+  }
+  
+  if(new Date(dataFim) <= new Date(dataInicio)) {
+    alert("Data fim deve ser após data início.");
+    return;
+  }
 
-  try{
-    await setDoc(perfilRef,{saldo, dataInicio, dataFim, despesas:[]});
-    document.getElementById("nomePerfil").value="";
-    document.getElementById("saldo").value="";
-    document.getElementById("dataInicio").value="";
-    document.getElementById("dataFim").value="";
+  // Criar ID único combinando usuário e nome do perfil
+  const perfilId = `${usuarioLogado}_${nome}`;
+  const perfilRef = doc(db, "perfis", perfilId);
+  
+  try {
+    const perfilSnap = await getDoc(perfilRef);
+    if(perfilSnap.exists()) {
+      alert("Já existe um perfil com esse nome.");
+      return;
+    }
+
+    const dadosPerfil = {
+      nome: nome,
+      saldo: saldo,
+      dataInicio: dataInicio,
+      dataFim: dataFim,
+      despesas: [],
+      userId: usuarioLogado,
+      criadoEm: new Date().toISOString()
+    };
+
+    console.log("Tentando criar perfil:", dadosPerfil);
+    
+    await setDoc(perfilRef, dadosPerfil);
+    
+    console.log("Perfil criado com sucesso!");
+    
+    // Limpar formulário
+    document.getElementById("nomePerfil").value = "";
+    document.getElementById("saldo").value = "";
+    document.getElementById("dataInicio").value = "";
+    document.getElementById("dataFim").value = "";
+    
+    // Recarregar lista de perfis
     await carregarPerfis();
-  } catch(e){
-    alert("Erro ao criar perfil: " + e.message);
+    
+    alert("Perfil criado com sucesso!");
+    
+  } catch(error) {
+    console.error("Erro ao criar perfil:", error);
+    alert("Erro ao criar perfil: " + error.message);
   }
 });
 
 // --- CARREGAR PERFIS ---
 async function carregarPerfis() {
+  if(!usuarioLogado) return;
+  
   const lista = document.getElementById("listaPerfis");
-  lista.innerHTML="";
-  const snapshot = await getDocs(collection(db,"perfis"));
-  snapshot.forEach(docItem => {
-    const opt = document.createElement("option");
-    opt.value = docItem.id;
-    opt.textContent = docItem.id;
-    lista.appendChild(opt);
-  });
-  if(snapshot.docs.length>0){
-    perfilAtivo = snapshot.docs[0].id;
-    lista.value = perfilAtivo;
-    mostrarPerfil();
+  lista.innerHTML = '<option value="">Selecione um perfil</option>';
+  
+  try {
+    // Buscar apenas perfis do usuário atual
+    const q = query(collection(db, "perfis"), where("userId", "==", usuarioLogado));
+    const snapshot = await getDocs(q);
+    
+    console.log("Perfis encontrados:", snapshot.docs.length);
+    
+    snapshot.forEach(docItem => {
+      const dados = docItem.data();
+      const opt = document.createElement("option");
+      opt.value = docItem.id;
+      opt.textContent = dados.nome;
+      lista.appendChild(opt);
+    });
+    
+    if(snapshot.docs.length > 0 && !perfilAtivo) {
+      perfilAtivo = snapshot.docs[0].id;
+      lista.value = perfilAtivo;
+      mostrarPerfil();
+    }
+  } catch(error) {
+    console.error("Erro ao carregar perfis:", error);
   }
 }
 
 // --- SELECIONAR PERFIL ---
 window.selecionarPerfil = async function() {
-  perfilAtivo = document.getElementById("listaPerfis").value;
-  mostrarPerfil();
+  const novoPerfilAtivo = document.getElementById("listaPerfis").value;
+  if(novoPerfilAtivo) {
+    perfilAtivo = novoPerfilAtivo;
+    await mostrarPerfil();
+  } else {
+    perfilAtivo = null;
+    document.getElementById("dadosPerfil").style.display = "none";
+  }
 }
 
 // --- MOSTRAR PERFIL ---
 async function mostrarPerfil() {
-  if(!perfilAtivo) return;
-  const perfilRef = doc(db,"perfis",perfilAtivo);
-  const perfilSnap = await getDoc(perfilRef);
-  if(!perfilSnap.exists()) return;
-  const perfil = perfilSnap.data();
+  if(!perfilAtivo) {
+    document.getElementById("dadosPerfil").style.display = "none";
+    return;
+  }
+  
+  try {
+    const perfilRef = doc(db, "perfis", perfilAtivo);
+    const perfilSnap = await getDoc(perfilRef);
+    
+    if(!perfilSnap.exists()) {
+      console.error("Perfil não encontrado");
+      return;
+    }
+    
+    const perfil = perfilSnap.data();
 
-  document.getElementById("dadosPerfil").style.display="block";
-  document.getElementById("tituloPerfil").textContent = perfilAtivo;
+    document.getElementById("dadosPerfil").style.display = "block";
+    document.getElementById("tituloPerfil").textContent = perfil.nome;
 
-  const totalGasto = perfil.despesas.reduce((acc,d)=>acc+d.valor,0);
-  const saldoAtual = perfil.saldo - totalGasto;
-  const hoje = new Date();
-  const fim = new Date(perfil.dataFim);
-  const diasRestantes = Math.ceil((fim-hoje)/(1000*60*60*24))+1;
+    const totalGasto = perfil.despesas ? perfil.despesas.reduce((acc, d) => acc + d.valor, 0) : 0;
+    const saldoAtual = perfil.saldo - totalGasto;
+    const hoje = new Date();
+    const fim = new Date(perfil.dataFim);
+    const diasRestantes = Math.ceil((fim - hoje) / (1000 * 60 * 60 * 24)) + 1;
 
-  document.getElementById("saldoAtual").textContent = saldoAtual.toFixed(2);
-  document.getElementById("diasRestantes").textContent = diasRestantes>0?diasRestantes:0;
-  document.getElementById("mediaDiaria").textContent = diasRestantes>0?(saldoAtual/diasRestantes).toFixed(2):0;
+    document.getElementById("saldoAtual").textContent = saldoAtual.toFixed(2);
+    document.getElementById("diasRestantes").textContent = diasRestantes > 0 ? diasRestantes : 0;
+    document.getElementById("mediaDiaria").textContent = diasRestantes > 0 ? (saldoAtual / diasRestantes).toFixed(2) : "0.00";
 
-  const listaDespesas = document.getElementById("listaDespesas");
-  listaDespesas.innerHTML="";
-  perfil.despesas.forEach((d,index)=>{
-    const li = document.createElement("li");
-    li.textContent = `${d.data} - ${d.valor.toFixed(2)}€ ${d.obs?`(${d.obs})`:''}`;
-    const btnDel = document.createElement("span");
-    btnDel.textContent=" [X]";
-    btnDel.className="btnDespesa";
-    btnDel.addEventListener("click", async ()=>{
-      perfil.despesas.splice(index,1);
-      await updateDoc(perfilRef,{despesas: perfil.despesas});
-      mostrarPerfil();
-    });
-    li.appendChild(btnDel);
-    listaDespesas.appendChild(li);
-  });
+    // Mostrar despesas
+    const listaDespesas = document.getElementById("listaDespesas");
+    listaDespesas.innerHTML = "";
+    
+    if(perfil.despesas && perfil.despesas.length > 0) {
+      perfil.despesas.forEach((d, index) => {
+        const li = document.createElement("li");
+        li.textContent = `${d.data} - ${d.valor.toFixed(2)}€ ${d.obs ? `(${d.obs})` : ''}`;
+        const btnDel = document.createElement("span");
+        btnDel.textContent = " [X]";
+        btnDel.className = "btnDespesa";
+        btnDel.addEventListener("click", async () => {
+          if(confirm("Eliminar esta despesa?")) {
+            perfil.despesas.splice(index, 1);
+            await updateDoc(perfilRef, { despesas: perfil.despesas });
+            mostrarPerfil();
+          }
+        });
+        li.appendChild(btnDel);
+        listaDespesas.appendChild(li);
+      });
+    }
+  } catch(error) {
+    console.error("Erro ao mostrar perfil:", error);
+  }
 }
 
 // --- ADICIONAR DESPESA ---
-document.getElementById("btnAdicionarDespesa").addEventListener("click", async ()=>{
+document.getElementById("btnAdicionarDespesa").addEventListener("click", async () => {
   if(!perfilAtivo) return;
+  
   const valor = parseFloat(document.getElementById("valorDespesa").value);
   const data = document.getElementById("dataDespesa").value;
-  const obs = document.getElementById("obsDespesa").value;
-  if(isNaN(valor) || !data) return alert("Insira valor e data da despesa.");
+  const obs = document.getElementById("obsDespesa").value.trim();
+  
+  if(isNaN(valor) || valor <= 0 || !data) {
+    alert("Insira um valor válido e data da despesa.");
+    return;
+  }
 
-  const perfilRef = doc(db,"perfis",perfilAtivo);
-  const perfilSnap = await getDoc(perfilRef);
-  if(!perfilSnap.exists()) return;
-  const perfil = perfilSnap.data();
+  try {
+    const perfilRef = doc(db, "perfis", perfilAtivo);
+    const perfilSnap = await getDoc(perfilRef);
+    
+    if(!perfilSnap.exists()) return;
+    
+    const perfil = perfilSnap.data();
+    if(!perfil.despesas) perfil.despesas = [];
 
-  perfil.despesas.push({ valor, data, obs });
-  await updateDoc(perfilRef,{despesas: perfil.despesas});
+    perfil.despesas.push({ valor, data, obs });
+    await updateDoc(perfilRef, { despesas: perfil.despesas });
 
-  mostrarPerfil();
+    // Limpar formulário
+    document.getElementById("valorDespesa").value = "";
+    document.getElementById("dataDespesa").value = "";
+    document.getElementById("obsDespesa").value = "";
 
-  document.getElementById("valorDespesa").value="";
-  document.getElementById("dataDespesa").value="";
-  document.getElementById("obsDespesa").value="";
+    await mostrarPerfil();
+  } catch(error) {
+    console.error("Erro ao adicionar despesa:", error);
+    alert("Erro ao adicionar despesa: " + error.message);
+  }
 });
 
 // --- ELIMINAR PERFIL ---
-document.getElementById("btnEliminarPerfil").addEventListener("click", async ()=>{
+document.getElementById("btnEliminarPerfil").addEventListener("click", async () => {
   if(!perfilAtivo) return;
-  if(!confirm("Tem a certeza que quer eliminar este perfil?")) return;
-  await deleteDoc(doc(db,"perfis",perfilAtivo));
-  perfilAtivo = null;
-  document.getElementById("dadosPerfil").style.display="none";
-  carregarPerfis();
+  
+  if(!confirm("Tem a certeza que quer eliminar este perfil? Esta ação não pode ser desfeita.")) return;
+  
+  try {
+    await deleteDoc(doc(db, "perfis", perfilAtivo));
+    perfilAtivo = null;
+    document.getElementById("dadosPerfil").style.display = "none";
+    await carregarPerfis();
+    alert("Perfil eliminado com sucesso!");
+  } catch(error) {
+    console.error("Erro ao eliminar perfil:", error);
+    alert("Erro ao eliminar perfil: " + error.message);
+  }
+});
+
+// Definir data de hoje por defeito ao carregar
+document.addEventListener('DOMContentLoaded', () => {
+  const hoje = new Date().toISOString().split('T')[0];
+  document.getElementById("dataDespesa").value = hoje;
 });
 </script>
 </body>
