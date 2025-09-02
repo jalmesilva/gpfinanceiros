@@ -2,168 +2,123 @@
 <html lang="pt">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gestor Financeiro</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
-    h1 { color: #333; }
-    .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    input, select, button { margin: 5px 0; padding: 8px; }
-    button { cursor: pointer; border: none; border-radius: 8px; padding: 8px 16px; }
-    .add { background: #4caf50; color: white; }
-    .delete { background: #e53935; color: white; }
-    .secondary { background: #1976d2; color: white; }
-    ul { padding-left: 20px; }
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    input, button, select { margin: 5px; padding: 5px; }
+    .card { border: 1px solid #ccc; border-radius: 8px; padding: 15px; margin-top: 15px; }
+    .despesa { margin: 5px 0; }
+    #loginScreen { max-width: 300px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
   </style>
 </head>
 <body>
-  <h1>Gestor Financeiro</h1>
-
-  <!-- Criar perfil -->
-  <div class="card">
-    <h2>Novo Perfil</h2>
-    <input type="text" id="perfilNome" placeholder="Nome do perfil">
-    <input type="number" id="perfilSaldo" placeholder="Saldo inicial (€)">
-    <input type="number" id="perfilDias" placeholder="Número de dias">
-    <button class="add" onclick="criarPerfil()">Criar Perfil</button>
+  <!-- Login Screen -->
+  <div id="loginScreen">
+    <h2>Login</h2>
+    <input id="email" type="text" placeholder="Email"><br>
+    <input id="password" type="password" placeholder="Password"><br>
+    <button onclick="login()">Entrar</button>
+    <p id="loginError" style="color:red;display:none;">Credenciais inválidas</p>
   </div>
 
-  <!-- Selecionar/eliminar perfil -->
-  <div class="card">
-    <h2>Perfis</h2>
-    <select id="listaPerfis" onchange="selecionarPerfil()"></select>
-    <button class="delete" onclick="eliminarPerfil()">Eliminar Perfil</button>
-  </div>
+  <!-- App Screen -->
+  <div id="app" style="display:none;">
+    <h1>Gestor Financeiro</h1>
+    <div>
+      <input type="text" id="nomePerfil" placeholder="Nome do perfil">
+      <input type="number" id="saldo" placeholder="Saldo inicial">
+      <input type="number" id="dias" placeholder="Nº dias">
+      <button onclick="criarPerfil()">Criar Perfil</button>
+    </div>
 
-  <!-- Gestão do perfil ativo -->
-  <div class="card" id="perfilAtivoSecao" style="display:none;">
-    <h2 id="perfilTitulo"></h2>
-    <p><b>Saldo inicial:</b> <span id="saldoInicial"></span> €</p>
-    <p><b>Saldo restante:</b> <span id="saldoRestante"></span> €</p>
-    <p><b>Média disponível por dia:</b> <span id="mediaDiaria"></span> €</p>
+    <div>
+      <select id="listaPerfis" onchange="selecionarPerfil()"></select>
+      <button onclick="eliminarPerfil()">Eliminar Perfil</button>
+    </div>
 
-    <h3>Adicionar Despesa</h3>
-    <input type="date" id="despesaData">
-    <input type="number" id="despesaValor" placeholder="Valor (€)">
-    <input type="text" id="despesaObs" placeholder="Observação (opcional)">
-    <button class="secondary" onclick="adicionarDespesa()">Adicionar</button>
+    <div id="dadosPerfil" class="card" style="display:none;">
+      <h3 id="tituloPerfil"></h3>
+      <p><strong>Saldo:</strong> <span id="saldoAtual"></span> €</p>
+      <p><strong>Dias restantes:</strong> <span id="diasRestantes"></span></p>
+      <p><strong>Média diária disponível:</strong> <span id="mediaDiaria"></span> €</p>
 
-    <h3>Despesas</h3>
-    <ul id="listaDespesas"></ul>
+      <h4>Adicionar Despesa</h4>
+      <input type="number" id="valorDespesa" placeholder="Valor">
+      <input type="text" id="obsDespesa" placeholder="Observação (opcional)">
+      <button onclick="adicionarDespesa()">Adicionar</button>
+
+      <div>
+        <h4>Histórico de Despesas</h4>
+        <ul id="listaDespesas"></ul>
+      </div>
+    </div>
   </div>
 
   <script>
-    let perfilAtivo = null;
+    // --- Login simples ---
+    const users = {
+      "jorge@email.com": "1234",
+      "esposa@email.com": "abcd"
+    };
 
-    function guardarPerfis(perfis) {
-      localStorage.setItem("perfis", JSON.stringify(perfis));
+    function login() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      if (users[email] && users[email] === password) {
+        sessionStorage.setItem("loggedIn", email);
+        document.getElementById("loginScreen").style.display = "none";
+        document.getElementById("app").style.display = "block";
+        carregarPerfis();
+      } else {
+        document.getElementById("loginError").style.display = "block";
+      }
     }
+
+    window.onload = () => {
+      if (sessionStorage.getItem("loggedIn")) {
+        document.getElementById("loginScreen").style.display = "none";
+        document.getElementById("app").style.display = "block";
+        carregarPerfis();
+      }
+    };
+
+    // --- Lógica da App ---
+    let perfilAtivo = null;
 
     function obterPerfis() {
       return JSON.parse(localStorage.getItem("perfis") || "{}");
     }
 
-    function carregarPerfis() {
-  const lista = document.getElementById("listaPerfis");
-  lista.innerHTML = "";
-  const perfis = obterPerfis();
-  const nomes = Object.keys(perfis);
-
-  for (const nome of nomes) {
-    const opt = document.createElement("option");
-    opt.value = nome;
-    opt.textContent = nome;
-    lista.appendChild(opt);
-  }
-
-  // se só houver 1 perfil, seleciona automaticamente
-  if (nomes.length === 1) {
-    perfilAtivo = nomes[0];
-    lista.value = perfilAtivo;
-    mostrarPerfil();
-  }
-}
+    function guardarPerfis(perfis) {
+      localStorage.setItem("perfis", JSON.stringify(perfis));
+    }
 
     function criarPerfil() {
-      const nome = document.getElementById("perfilNome").value.trim();
-      const saldo = parseFloat(document.getElementById("perfilSaldo").value);
-      const dias = parseInt(document.getElementById("perfilDias").value);
-      if (!nome || isNaN(saldo) || isNaN(dias)) return alert("Preencha todos os campos.");
-      
+      const nome = document.getElementById("nomePerfil").value;
+      const saldo = parseFloat(document.getElementById("saldo").value);
+      const dias = parseInt(document.getElementById("dias").value);
+      if (!nome || isNaN(saldo) || isNaN(dias)) return alert("Preencha todos os campos");
+
       const perfis = obterPerfis();
-      perfis[nome] = { saldoInicial: saldo, dias, despesas: [] };
+      perfis[nome] = { saldo, dias, despesas: [] };
       guardarPerfis(perfis);
       carregarPerfis();
-      document.getElementById("perfilNome").value = "";
-      document.getElementById("perfilSaldo").value = "";
-      document.getElementById("perfilDias").value = "";
     }
 
-    function selecionarPerfil() {
+    function carregarPerfis() {
       const lista = document.getElementById("listaPerfis");
-      perfilAtivo = lista.value;
-      mostrarPerfil();
-    }
-
-    function eliminarPerfil() {
-      if (!perfilAtivo) return alert("Selecione um perfil primeiro.");
-      if (!confirm(`Tem a certeza que deseja eliminar o perfil "${perfilAtivo}"?`)) return;
-      const perfis = obterPerfis();
-      delete perfis[perfilAtivo];
-      guardarPerfis(perfis);
-      perfilAtivo = null;
-      carregarPerfis();
-      document.getElementById("perfilAtivoSecao").style.display = "none";
-    }
-
-    function mostrarPerfil() {
-      if (!perfilAtivo) return;
-      const perfis = obterPerfis();
-      const perfil = perfis[perfilAtivo];
-      if (!perfil) return;
-
-      const gasto = perfil.despesas.reduce((acc, d) => acc + d.valor, 0);
-      const restante = perfil.saldoInicial - gasto;
-
-      const diasPassados = new Set(perfil.despesas.map(d => d.data)).size;
-      const diasRestantes = Math.max(perfil.dias - diasPassados, 1);
-      const media = (restante / diasRestantes).toFixed(2);
-
-      document.getElementById("perfilTitulo").textContent = "Perfil: " + perfilAtivo;
-      document.getElementById("saldoInicial").textContent = perfil.saldoInicial.toFixed(2);
-      document.getElementById("saldoRestante").textContent = restante.toFixed(2);
-      document.getElementById("mediaDiaria").textContent = media;
-
-      const lista = document.getElementById("listaDespesas");
       lista.innerHTML = "";
-      perfil.despesas.forEach(d => {
-        const li = document.createElement("li");
-        li.textContent = `${d.data} - ${d.valor.toFixed(2)}€ ${d.observacao ? "(" + d.observacao + ")" : ""}`;
-        lista.appendChild(li);
-      });
-
-      document.getElementById("perfilAtivoSecao").style.display = "block";
-    }
-
-    function adicionarDespesa() {
-      if (!perfilAtivo) return alert("Selecione um perfil primeiro.");
-      const data = document.getElementById("despesaData").value;
-      const valor = parseFloat(document.getElementById("despesaValor").value);
-      const obs = document.getElementById("despesaObs").value.trim();
-      if (!data || isNaN(valor)) return alert("Preencha corretamente a data e valor.");
-      
       const perfis = obterPerfis();
-      perfis[perfilAtivo].despesas.push({ data, valor, observacao: obs });
-      guardarPerfis(perfis);
+      const nomes = Object.keys(perfis);
 
-      document.getElementById("despesaData").value = "";
-      document.getElementById("despesaValor").value = "";
-      document.getElementById("despesaObs").value = "";
+      for (const nome of nomes) {
+        const opt = document.createElement("option");
+        opt.value = nome;
+        opt.textContent = nome;
+        lista.appendChild(opt);
+      }
 
-      mostrarPerfil();
-    }
-
-    // inicialização
-    window.onload = carregarPerfis;
-  </script>
-</body>
-</html>
+      if (nomes.length === 1) {
+        perfilAt
