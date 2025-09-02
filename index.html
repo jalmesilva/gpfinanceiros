@@ -63,16 +63,25 @@
     }
 
     function carregarPerfis() {
-      const lista = document.getElementById("listaPerfis");
-      lista.innerHTML = "";
-      const perfis = obterPerfis();
-      for (const nome in perfis) {
-        const opt = document.createElement("option");
-        opt.value = nome;
-        opt.textContent = nome;
-        lista.appendChild(opt);
-      }
-    }
+  const lista = document.getElementById("listaPerfis");
+  lista.innerHTML = "";
+  const perfis = obterPerfis();
+  const nomes = Object.keys(perfis);
+
+  for (const nome of nomes) {
+    const opt = document.createElement("option");
+    opt.value = nome;
+    opt.textContent = nome;
+    lista.appendChild(opt);
+  }
+
+  // se só houver 1 perfil, seleciona automaticamente
+  if (nomes.length === 1) {
+    perfilAtivo = nomes[0];
+    lista.value = perfilAtivo;
+    mostrarPerfil();
+  }
+}
 
     function criarPerfil() {
       const nome = document.getElementById("perfilNome").value.trim();
