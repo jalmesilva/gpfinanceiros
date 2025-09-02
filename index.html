@@ -96,8 +96,10 @@ document.getElementById("btnLogin").addEventListener("click", async () => {
   try {
     await signInWithEmailAndPassword(auth, email, password);
     document.getElementById("loginError").style.display="none";
+    console.log("Login bem-sucedido!");
   } catch {
     document.getElementById("loginError").style.display="block";
+    console.log("Erro no login!");
   }
 });
 
@@ -106,7 +108,7 @@ onAuthStateChanged(auth, async user => {
     usuarioLogado = user.email;
     document.getElementById("loginScreen").style.display="none";
     document.getElementById("app").style.display="block";
-    carregarPerfis();
+    await carregarPerfis();
   } else {
     usuarioLogado = null;
     document.getElementById("app").style.display="none";
@@ -117,10 +119,12 @@ onAuthStateChanged(auth, async user => {
 // --- LOGOUT ---
 document.getElementById("btnLogout").addEventListener("click", async () => {
   await signOut(auth);
+  console.log("Logout efetuado!");
 });
 
 // --- CRIAR PERFIL ---
 document.getElementById("btnCriarPerfil").addEventListener("click", async () => {
+  console.log("Clique detectado no criar perfil");
   const nome = document.getElementById("nomePerfil").value.trim();
   const saldo = parseFloat(document.getElementById("saldo").value);
   const dataInicio = document.getElementById("dataInicio").value;
@@ -133,12 +137,16 @@ document.getElementById("btnCriarPerfil").addEventListener("click", async () => 
   const perfilSnap = await getDoc(perfilRef);
   if(perfilSnap.exists()) return alert("Já existe um perfil com esse nome.");
 
-  await setDoc(perfilRef,{saldo, dataInicio, dataFim, despesas:[]});
-  document.getElementById("nomePerfil").value="";
-  document.getElementById("saldo").value="";
-  document.getElementById("dataInicio").value="";
-  document.getElementById("dataFim").value="";
-  carregarPerfis();
+  try{
+    await setDoc(perfilRef,{saldo, dataInicio, dataFim, despesas:[]});
+    document.getElementById("nomePerfil").value="";
+    document.getElementById("saldo").value="";
+    document.getElementById("dataInicio").value="";
+    document.getElementById("dataFim").value="";
+    await carregarPerfis();
+  } catch(e){
+    alert("Erro ao criar perfil: " + e.message);
+  }
 });
 
 // --- CARREGAR PERFIS ---
