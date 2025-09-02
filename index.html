@@ -8,16 +8,16 @@
   body { font-family: Arial, sans-serif; margin: 20px; }
   input, button, select { margin: 5px; padding: 5px; }
   .card { border: 1px solid #ccc; border-radius: 8px; padding: 15px; margin-top: 15px; }
-  .despesa { margin: 5px 0; }
   #loginScreen { max-width: 300px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
   .btnDespesa { margin-left: 10px; color: red; cursor: pointer; }
 </style>
 </head>
 <body>
+
 <!-- Login Screen -->
 <div id="loginScreen">
   <h2>Login</h2>
-  <input id="email" type="text" placeholder="Email"><br>
+  <input id="email" type="email" placeholder="Email"><br>
   <input id="password" type="password" placeholder="Password"><br>
   <button id="btnLogin">Entrar</button>
   <p id="loginError" style="color:red;display:none;">Credenciais inválidas</p>
@@ -65,102 +65,99 @@
   </div>
 </div>
 
-<script>
-  // --- Login ---
-  const users = { "jogui": "Gui230885" };
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-analytics.js";
+  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
-  window.onload = () => {
-    document.getElementById('btnLogin').addEventListener('click', login);
-
-    if(sessionStorage.getItem("loggedIn")){
-      document.getElementById("loginScreen").style.display="none";
-      document.getElementById("app").style.display="block";
-      carregarPerfis();
-    }
+  const firebaseConfig = {
+    apiKey: "AIzaSyAC9EguGeZd50W1jADEx73aJKGacFeGk9o",
+    authDomain: "bddespesas.firebaseapp.com",
+    projectId: "bddespesas",
+    storageBucket: "bddespesas.firebasestorage.app",
+    messagingSenderId: "521648200265",
+    appId: "1:521648200265:web:82fc2c97f02e185478fd98",
+    measurementId: "G-P7NX1T9RVE"
   };
 
-  function login() {
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let perfilAtivo = null;
+
+  // --- Login ---
+  const loginBtn = document.getElementById("btnLogin");
+  loginBtn.addEventListener("click", async () => {
     const email = document.getElementById("email").value;
     const password = document.getElementById("password").value;
-    if(users[email] && users[email] === password){
-      sessionStorage.setItem("loggedIn", email);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      document.getElementById("loginError").style.display="none";
+    } catch (e) {
+      document.getElementById("loginError").style.display="block";
+    }
+  });
+
+  onAuthStateChanged(auth, user => {
+    if(user){
       document.getElementById("loginScreen").style.display="none";
       document.getElementById("app").style.display="block";
       carregarPerfis();
     } else {
-      document.getElementById("loginError").style.display="block";
+      document.getElementById("app").style.display="none";
+      document.getElementById("loginScreen").style.display="block";
     }
+  });
+
+  async function logout() {
+    await signOut(auth);
   }
 
-  function logout(){
-    sessionStorage.removeItem("loggedIn");
-    document.getElementById("app").style.display="none";
-    document.getElementById("loginScreen").style.display="block";
-  }
-
-  // --- App logic ---
-  let perfilAtivo = null;
-
-  function obterPerfis(){
-    return JSON.parse(localStorage.getItem("perfis") || "{}");
-  }
-
-  function guardarPerfis(perfis){
-    localStorage.setItem("perfis", JSON.stringify(perfis));
-  }
-
-  function criarPerfil(){
+  // --- Perfis ---
+  async function criarPerfil() {
     const nome = document.getElementById("nomePerfil").value;
     const saldo = parseFloat(document.getElementById("saldo").value);
-    const inicio = new Date(document.getElementById("dataInicio").value);
-    const fim = new Date(document.getElementById("dataFim").value);
+    const dataInicio = document.getElementById("dataInicio").value;
+    const dataFim = document.getElementById("dataFim").value;
+    if(!nome||isNaN(saldo)||!dataInicio||!dataFim) return alert("Preencha todos os campos corretamente.");
 
-    if(!nome || isNaN(saldo) || !inicio || !fim) return alert("Preencha todos os campos corretamente.");
-    const dias = Math.ceil((fim - inicio)/(1000*60*60*24)) + 1;
-    if(dias <= 0) return alert("Data fim deve ser após a data início.");
-
-    const perfis = obterPerfis();
-    perfis[nome] = {
-      saldo,
-      dias,
-      dataInicio: inicio.toISOString().split('T')[0],
-      dataFim: fim.toISOString().split('T')[0],
-      despesas: []
-    };
-    guardarPerfis(perfis);
+    await setDoc(doc(db,"perfis",nome), { saldo, dataInicio, dataFim, despesas: [] });
     carregarPerfis();
   }
 
-  function carregarPerfis(){
+  async function carregarPerfis() {
     const lista = document.getElementById("listaPerfis");
     lista.innerHTML = "";
-    const perfis = obterPerfis();
-    const nomes = Object.keys(perfis);
-    for(const nome of nomes){
+    const snapshot = await getDocs(collection(db,"perfis"));
+    snapshot.forEach(docItem=>{
       const opt = document.createElement("option");
-      opt.value = nome;
-      opt.textContent = nome;
+      opt.value = docItem.id;
+      opt.textContent = docItem.id;
       lista.appendChild(opt);
-    }
-    if(nomes.length===1){
-      perfilAtivo = nomes[0];
+    });
+    if(snapshot.docs.length===1){
+      perfilAtivo = snapshot.docs[0].id;
       lista.value = perfilAtivo;
       mostrarPerfil();
     }
   }
 
-  function selecionarPerfil(){
-    const lista = document.getElementById("listaPerfis");
-    perfilAtivo = lista.value;
+  async function selecionarPerfil() {
+    perfilAtivo = document.getElementById("listaPerfis").value;
     mostrarPerfil();
   }
 
-  function mostrarPerfil(){
-    const perfis = obterPerfis();
-    if(!perfilAtivo || !perfis[perfilAtivo]) return;
-    const perfil = perfis[perfilAtivo];
+  async function mostrarPerfil() {
+    if(!perfilAtivo) return;
+    const docRef = doc(db,"perfis",perfilAtivo);
+    const perfilSnap = await getDoc(docRef);
+    if(!perfilSnap.exists()) return;
+    const perfil = perfilSnap.data();
 
-    document.getElementById("dadosPerfil").style.display = "block";
+    document.getElementById("dadosPerfil").style.display="block";
     document.getElementById("tituloPerfil").textContent = perfilAtivo;
 
     const totalGasto = perfil.despesas.reduce((acc,d)=>acc+d.valor,0);
@@ -177,13 +174,13 @@
     listaDespesas.innerHTML="";
     perfil.despesas.forEach((d,index)=>{
       const li = document.createElement("li");
-      li.textContent = `${d.data} - ${d.valor.toFixed(2)}€ ${d.obs?"("+d.obs+")":""}`;
+      li.textContent = `${d.data} - ${d.valor.toFixed(2)}€ ${d.obs?`(${d.obs})`:''}`;
       const btnDel = document.createElement("span");
       btnDel.textContent=" [X]";
       btnDel.className="btnDespesa";
-      btnDel.onclick=()=>{
+      btnDel.onclick=async ()=>{
         perfil.despesas.splice(index,1);
-        guardarPerfis(perfis);
+        await updateDoc(docRef,{despesas: perfil.despesas});
         mostrarPerfil();
       };
       li.appendChild(btnDel);
@@ -191,31 +188,36 @@
     });
   }
 
-  function adicionarDespesa(){
+  async function adicionarDespesa() {
+    if(!perfilAtivo) return;
     const valor = parseFloat(document.getElementById("valorDespesa").value);
+    const data = document.getElementById("dataDespesa").value;
     const obs = document.getElementById("obsDespesa").value;
-    const dataDespesa = document.getElementById("dataDespesa").value;
-    if(isNaN(valor) || !dataDespesa) return alert("Insira valor e data da despesa.");
+    if(isNaN(valor)||!data) return alert("Insira valor e data da despesa.");
 
-    const perfis = obterPerfis();
-    perfis[perfilAtivo].despesas.push({ valor, obs, data: dataDespesa });
-    guardarPerfis(perfis);
+    const docRef = doc(db,"perfis",perfilAtivo);
+    const perfilSnap = await getDoc(docRef);
+    if(!perfilSnap.exists()) return;
+    const perfil = perfilSnap.data();
+
+    perfil.despesas.push({ valor, data, obs });
+    await updateDoc(docRef, { despesas: perfil.despesas });
+
     mostrarPerfil();
 
     document.getElementById("valorDespesa").value="";
-    document.getElementById("obsDespesa").value="";
     document.getElementById("dataDespesa").value="";
+    document.getElementById("obsDespesa").value="";
   }
 
-  function eliminarPerfil(){
+  async function eliminarPerfil() {
     if(!perfilAtivo) return;
-    const perfis = obterPerfis();
-    delete perfis[perfilAtivo];
-    guardarPerfis(perfis);
+    await deleteDoc(doc(db,"perfis",perfilAtivo));
     perfilAtivo = null;
     document.getElementById("dadosPerfil").style.display="none";
     carregarPerfis();
   }
+
 </script>
 </body>
 </html>
