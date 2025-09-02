@@ -18,12 +18,13 @@
     <h2>Login</h2>
     <input id="email" type="text" placeholder="Email"><br>
     <input id="password" type="password" placeholder="Password"><br>
-    <button onclick="login()">Entrar</button>
+    <button id="btnLogin">Entrar</button>
     <p id="loginError" style="color:red;display:none;">Credenciais inválidas</p>
   </div>
 
   <!-- App Screen -->
   <div id="app" style="display:none;">
+    <button onclick="logout()">Logout</button>
     <h1>Gestor Financeiro</h1>
     <div>
       <input type="text" id="nomePerfil" placeholder="Nome do perfil">
@@ -58,9 +59,11 @@
   <script>
     // --- Login simples ---
     const users = {
-      "jorge@email.com": "1234",
-      "esposa@email.com": "abcd"
+      "jogui": "Gui230885",
     };
+
+    const btnLogin = document.getElementById('btnLogin');
+    btnLogin.addEventListener('click', login);
 
     function login() {
       const email = document.getElementById("email").value;
@@ -76,6 +79,12 @@
       }
     }
 
+    function logout() {
+      sessionStorage.removeItem("loggedIn");
+      document.getElementById("app").style.display = "none";
+      document.getElementById("loginScreen").style.display = "block";
+    }
+
     window.onload = () => {
       if (sessionStorage.getItem("loggedIn")) {
         document.getElementById("loginScreen").style.display = "none";
@@ -84,7 +93,7 @@
       }
     };
 
-    // --- Lógica da App ---
+    // --- App logic ---
     let perfilAtivo = null;
 
     function obterPerfis() {
@@ -121,4 +130,66 @@
       }
 
       if (nomes.length === 1) {
-        perfilAt
+        perfilAtivo = nomes[0];
+        lista.value = perfilAtivo;
+        mostrarPerfil();
+      }
+    }
+
+    function selecionarPerfil() {
+      const lista = document.getElementById("listaPerfis");
+      perfilAtivo = lista.value;
+      mostrarPerfil();
+    }
+
+    function mostrarPerfil() {
+      const perfis = obterPerfis();
+      if (!perfilAtivo || !perfis[perfilAtivo]) return;
+      const perfil = perfis[perfilAtivo];
+
+      document.getElementById("dadosPerfil").style.display = "block";
+      document.getElementById("tituloPerfil").textContent = perfilAtivo;
+
+      const totalGasto = perfil.despesas.reduce((acc, d) => acc + d.valor, 0);
+      const saldoAtual = perfil.saldo - totalGasto;
+      const diasRestantes = perfil.dias - new Date().getDate() + 1;
+
+      document.getElementById("saldoAtual").textContent = saldoAtual.toFixed(2);
+      document.getElementById("diasRestantes").textContent = diasRestantes;
+      document.getElementById("mediaDiaria").textContent = (saldoAtual / diasRestantes).toFixed(2);
+
+      const listaDespesas = document.getElementById("listaDespesas");
+      listaDespesas.innerHTML = "";
+      perfil.despesas.forEach(d => {
+        const li = document.createElement("li");
+        li.textContent = `${d.valor.toFixed(2)}€ - ${d.obs || "Sem observação"}`;
+        listaDespesas.appendChild(li);
+      });
+    }
+
+    function adicionarDespesa() {
+      const valor = parseFloat(document.getElementById("valorDespesa").value);
+      const obs = document.getElementById("obsDespesa").value;
+      if (isNaN(valor)) return alert("Insira um valor válido");
+
+      const perfis = obterPerfis();
+      perfis[perfilAtivo].despesas.push({ valor, obs, data: new Date().toISOString() });
+      guardarPerfis(perfis);
+      mostrarPerfil();
+
+      document.getElementById("valorDespesa").value = "";
+      document.getElementById("obsDespesa").value = "";
+    }
+
+    function eliminarPerfil() {
+      if (!perfilAtivo) return;
+      const perfis = obterPerfis();
+      delete perfis[perfilAtivo];
+      guardarPerfis(perfis);
+      perfilAtivo = null;
+      document.getElementById("dadosPerfil").style.display = "none";
+      carregarPerfis();
+    }
+  </script>
+</body>
+</html>
